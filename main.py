@@ -3,34 +3,47 @@ from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
+from langchain_community.tools import DuckDuckGoSearchRun
 
 load_dotenv()
 
+# Rename the actual search instance
+duckduckgo_search = DuckDuckGoSearchRun()
+
 
 @tool
-def search(query: str) -> str:
+def internet_search(query: str) -> str:
     """
-    This tool searches from the internet.
+    Search the internet using DuckDuckGo.
+
     Args:
-    - Query (str): The query to search for.
-    Results:
-    - The search result
+        query (str): Search query
+
+    Returns:
+        str: Search results
     """
-    print(f"Searching for {query}...")
-    return "Tokyo weather is fine"
+    print(f"Searching for: {query}")
+    results = duckduckgo_search.invoke(query)
+    return results
 
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
 )
-tools = [search]
-agent = create_agent(model=llm, tools=tools)
+
+tools = [internet_search]
+
+agent = create_agent(
+    model=llm,
+    tools=tools,
+)
 
 
 def main():
     response = agent.invoke(
         {"messages": [HumanMessage(content="What is the weather like in Tokyo?")]}
     )
+
     print(response)
 
 
