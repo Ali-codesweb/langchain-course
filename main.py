@@ -1,41 +1,72 @@
 from dotenv import load_dotenv
-from langchain_classic.agents import AgentExecutor
-from langchain_classic.agents.react.agent import create_react_agent
 from langchain_classic.tools import tool
-from langchain_community.tools import tool
-from langchain_community.tools.ddg_search.tool import DuckDuckGoSearchTool
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
 
-ddg_search = DuckDuckGoSearchTool()
-
 
 @tool
-def get_search_result(query: str):
+def get_text_length(text: str):
     """
-    This function searches from the internet
+    This function counts the number of words in a text
 
     Args:
-        text (str): the query to search
+        text (str): the text to count
 
     Returns:
-        result (str): The result of the search
+        result (int): The number of words in the text
     """
-    result = ddg_search.invoke(query)
-    return result
+    length = len(text.split())
+    return length
 
 
 def main():
 
-    tools = [get_search_result]
+    tools = [get_text_length]
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
     )
 
-    agent = create_react_agent(llm=llm, tools=tools)
+    # Bind tools directly to the LLM
+    llm_with_tools = llm.bind_tools(tools)
 
-    agent_executor = AgentExecutor(agent=agent, tools=tools)
+    # Initial human message
+    messages = [HumanMessage(content="What is the length of the word 'DOG'?")]
+
+    while True:
+        # First turn: LLM decides which tools to call
+        ai_msg = llm_with_tools.invoke(messages)
+        tool_calls = ai_msg.tool_calls
+
+        if len(tool_calls) > 0:
+            messages.append(ai_msg)
+            # Second turn: Execute tool calls and pass results back
+            for tool_call in tool_calls:
+                tool_name = tool_call.get("name")
+                tool_args = tool_call.get("args", {})
+                tool_call_id = tool_call.get("id")
+
+                # Find the matching tool
+                tool_map = {tool.name: tool for tool in tools}
+                selected_tool = tool_map[tool_name]
+
+                # Execute the tool
+                observation = selected_tool.invoke(tool_args)
+
+                # Append the tool execution result
+                messages.append(
+                    ToolMessage(
+                        content=str(observation),
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                )
+            continue
+
+        response = llm_with_tools.invoke(messages)
+        print(response.content)
+        break
 
 
 if __name__ == "__main__":
