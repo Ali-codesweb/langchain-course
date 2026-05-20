@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from langchain_classic.tools import tool
 from langchain_core.messages import HumanMessage, ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 load_dotenv()
 
@@ -24,8 +24,8 @@ def get_text_length(text: str):
 def main():
 
     tools = [get_text_length]
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+    llm = ChatOllama(
+        model="qwen2.5-coder:3b",
     )
 
     # Bind tools directly to the LLM
