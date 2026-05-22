@@ -1,73 +1,89 @@
+import os
+from operator import itemgetter
+from typing import Any
+
 from dotenv import load_dotenv
-from langchain_classic.tools import tool
-from langchain_core.messages import HumanMessage, ToolMessage
-from langchain_ollama import ChatOllama
+from langchain.messages import HumanMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableSerializable
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_openai import ChatOpenAI
+from langchain_postgres import PGVector
 
 load_dotenv()
 
+print("Initializing components")
 
-@tool
-def get_text_length(text: str):
+embeddings = OllamaEmbeddings(model="nomic-embed-text")
+# llm = ChatOllama(model="qwen3.5:4b")
+llm = ChatOpenAI(
+    base_url="http://127.0.0.1:8111/v1",
+    api_key="trtrtrtr",
+    model="mlx-community/Qwen3-4B-Instruct-2507-4bit",
+)
+# llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+vector_store = PGVector(
+    embeddings=embeddings,
+    collection_name="documents",
+    connection=os.environ.get("PGVECTOR_DB_URL"),
+)
+retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+prompt_template = ChatPromptTemplate.from_template(
     """
-    This function counts the number of words in a text
-
-    Args:
-        text (str): the text to count
-
-    Returns:
-        result (int): The number of words in the text
+    You are a helpful assistant that answers questions based on the context provided below. Answer in a clear, concise, and informative manner.
+    
+    Context:\n\n{context}\n\n
+    Question: {question}\n\n
+    Provide a Detailed answer:
     """
-    length = len(text.split())
-    return length
+)
 
 
-def main():
+def format_docs(docs):
+    """Format retreived docs"""
+    return "\n\n".join(document.page_content for document in docs)
 
-    tools = [get_text_length]
-    llm = ChatOllama(
-        model="qwen2.5-coder:3b",
+
+def retrieval_chain_without_lcel(query: str):
+    "Old"
+
+    # retreive the documents
+    docs = retriever.invoke(query)
+
+    # format the documents
+    context = format_docs(docs)
+
+    # format the prompt
+    prompt = prompt_template.format_messages(context=context, question=query)
+
+    # invoke the model
+    response = llm.invoke(prompt)
+
+    return response
+
+
+def retrieval_chain_with_lcel() -> RunnableSerializable[dict[str, Any], str]:
+    """New"""
+
+    retrieval_chain = (
+        RunnablePassthrough.assign(
+            context=itemgetter("question") | retriever | format_docs
+        )
+        | prompt_template
+        | llm
+        | StrOutputParser()
     )
 
-    # Bind tools directly to the LLM
-    llm_with_tools = llm.bind_tools(tools)
-
-    # Initial human message
-    messages = [HumanMessage(content="What is the length of the word 'DOG'?")]
-
-    while True:
-        # First turn: LLM decides which tools to call
-        ai_msg = llm_with_tools.invoke(messages)
-        tool_calls = ai_msg.tool_calls
-
-        if len(tool_calls) > 0:
-            messages.append(ai_msg)
-            # Second turn: Execute tool calls and pass results back
-            for tool_call in tool_calls:
-                tool_name = tool_call.get("name")
-                tool_args = tool_call.get("args", {})
-                tool_call_id = tool_call.get("id")
-
-                # Find the matching tool
-                tool_map = {tool.name: tool for tool in tools}
-                selected_tool = tool_map[tool_name]
-
-                # Execute the tool
-                observation = selected_tool.invoke(tool_args)
-
-                # Append the tool execution result
-                messages.append(
-                    ToolMessage(
-                        content=str(observation),
-                        tool_call_id=tool_call_id,
-                        name=tool_name,
-                    )
-                )
-            continue
-
-        response = llm_with_tools.invoke(messages)
-        print(response.content)
-        break
+    return retrieval_chain
 
 
 if __name__ == "__main__":
-    main()
+    print("retreiving...")
+    query = "What is PGVector in machine learning?"
+    # result = retrieval_chain_without_lcel(query)
+    result1 = retrieval_chain_with_lcel()
+
+    # print(result.content)
+    print(result1.invoke({"question": query}))
