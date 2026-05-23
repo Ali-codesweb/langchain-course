@@ -5,7 +5,7 @@ from crawl4ai import AdaptiveConfig, AdaptiveCrawler, AsyncWebCrawler
 from langchain_core.documents import Document
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 
-from config.ingestion import vectorstore
+from config.settings import vectorstore
 
 
 async def index_documents_async(documents: List[Document], batch_size: int = 50):

@@ -3,6 +3,7 @@ import os
 import certifi
 from dotenv import load_dotenv
 from langchain_ollama import OllamaEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 
 load_dotenv()
