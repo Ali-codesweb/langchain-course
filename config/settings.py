@@ -19,7 +19,7 @@ embeddings = OllamaEmbeddings(model="nomic-embed-text:latest")
 # initialize pgvector store
 vectorstore = PGVector(
     embeddings=embeddings,
-    collection_name="langchain-docs-2026",
+    collection_name="langchain-docs-2026-1",
     connection=os.environ.get("PGVECTOR_DB_URL"),
     async_mode=True,
 )

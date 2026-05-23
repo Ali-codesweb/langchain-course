@@ -16,6 +16,9 @@ dependencies = [
     "langchain-postgres>=0.0.17",
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
+    "streamlit>=1.57.0",
 ]
 [tool.ruff.lint]
 unfixable = ["F401"]
+[tool.setuptools]
+packages = ["backend", "config","frontend"]
